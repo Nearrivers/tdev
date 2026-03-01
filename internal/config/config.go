@@ -126,3 +126,15 @@ func (s *Store) Remove(c *Config, name string) error {
 
 	return s.save(c)
 }
+
+func (s *Store) Get(c *Config, name string) (Project, bool) {
+	var p Project
+
+	for _, project := range c.Projects {
+		if project.Name == name {
+			return project, true
+		}
+	}
+
+	return p, false
+}

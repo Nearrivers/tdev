@@ -248,3 +248,57 @@ back = "/home/user/monapp-back"
 		t.Errorf("wrong number of projects found, got %d, want %d", got, want)
 	}
 }
+
+func TestGet(t *testing.T) {
+	mfs := newMemFS()
+	mfs.files[testPath] = []byte(`
+[[projects]]
+name = "monapp"
+front = "/home/user/monapp-front"
+back = "/home/user/monapp-back"
+`)
+
+	store := newTestStore(mfs)
+
+	cfg, err := store.Load()
+	if err != nil {
+		t.Fatalf("got an error but didn't expect one: %v", err)
+	}
+
+	got, ok := store.Get(cfg, "monapp")
+	if !ok {
+		t.Fatalf("didn't find the project but expected to find it")
+	}
+
+	want := config.Project{
+		Name:  "monapp",
+		Front: "/home/user/monapp-front",
+		Back:  "/home/user/monapp-back",
+	}
+
+	if got.Name != want.Name || got.Front != want.Front || got.Back != want.Back {
+		t.Errorf("wrong project found, got %+v, want %+v", got, want)
+	}
+}
+
+func TestGet_Inexistant(t *testing.T) {
+	mfs := newMemFS()
+	mfs.files[testPath] = []byte(`
+[[projects]]
+name = "monapp"
+front = "/home/user/monapp-front"
+back = "/home/user/monapp-back"
+`)
+
+	store := newTestStore(mfs)
+
+	cfg, err := store.Load()
+	if err != nil {
+		t.Fatalf("got an error but didn't expect one: %v", err)
+	}
+
+	_, ok := store.Get(cfg, "inexistant")
+	if ok {
+		t.Fatalf("found a project but didn't expect to")
+	}
+}
