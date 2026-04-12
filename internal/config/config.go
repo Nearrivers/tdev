@@ -12,7 +12,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-var ErrProjectAlreadyExists = errors.New("project already exists. This is a warning and can be ignored")
+var ErrProjectAlreadyExists = errors.New("project already exists. This error is for testing purposes")
 
 type Project struct {
 	Name  string `toml:"name"`
@@ -52,11 +52,12 @@ type Store struct {
 }
 
 func New() (*Store, error) {
-	base, err := os.UserConfigDir()
+	base, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(base, "tdev", "projects.toml")
+
+	path := filepath.Join(base, ".config", "tdev", "projects.toml")
 	return &Store{fs: osFS{}, filePath: path}, nil
 }
 
@@ -127,14 +128,12 @@ func (s *Store) Remove(c *Config, name string) error {
 	return s.save(c)
 }
 
-func (s *Store) Get(c *Config, name string) (Project, bool) {
-	var p Project
-
+func (s *Store) Get(c *Config, name string) (*Project, bool) {
 	for _, project := range c.Projects {
 		if project.Name == name {
-			return project, true
+			return &project, true
 		}
 	}
 
-	return p, false
+	return &Project{}, false
 }

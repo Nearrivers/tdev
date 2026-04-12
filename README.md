@@ -28,8 +28,9 @@ tdev add monapp monapp-front monapp-back   # avec zoxide
 tdev open monapp
 
 # Ajouter les windows dans la session tmux courante
-tdev open monapp --append
-tdev open monapp -a
+tdev open monapp 
+
+Cette commande lance une session si aucune n'est en cours
 
 # Lister les projets
 tdev list
@@ -63,7 +64,7 @@ tdev/
 ├── cmd/
 │   ├── root.go      # cobra root + init
 │   ├── add.go       # tdev add
-│   ├── open.go      # tdev open [--append]
+│   ├── open.go      # tdev open
 │   ├── list.go      # tdev list
 │   └── remove.go    # tdev remove
 └── internal/
