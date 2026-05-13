@@ -27,8 +27,8 @@ tdev add monapp monapp-front monapp-back   # avec zoxide
 # Ouvrir dans une nouvelle session tmux
 tdev open monapp
 
-# Ajouter les windows dans la session tmux courante
-tdev open monapp 
+# Rechercher et ouvrir les projets connus dans la session tmux courante
+tdev open  
 
 Cette commande lance une session si aucune n'est en cours
 
@@ -69,7 +69,7 @@ tdev/
 │   └── remove.go    # tdev remove
 └── internal/
     ├── config/
-    │   └── config.go  # lecture/écriture ~/.config/tdev/projects.json
+    │   └── config.go  # lecture/écriture ~/.config/tdev/projects.toml
     ├── tmux/
     │   └── tmux.go    # appels tmux via os/exec
     └── ui/

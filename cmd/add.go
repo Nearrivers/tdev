@@ -4,44 +4,41 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/Nearrivers/tdev/internal/config"
 	"github.com/Nearrivers/tdev/internal/ui"
+	"github.com/koki-develop/go-fzf"
 	"github.com/spf13/cobra"
 )
 
+const hereFlag = "--here"
+
 var addCmd = &cobra.Command{
-	Use:   "add <nom> <chemin-front> <chemin-back>",
+	Use:   "add <nom> [chemin-front] [chemin-back]",
 	Short: "Déclarer un nouveau projet",
-	Long: `Ajoute une nouveau projet à la liste des projets connus.
+	Long: `Ajoute un nouveau projet à la liste des projets connus.
 
-Si le chemin commence par un "/", alors tdev part du principe que le chemin est absolu.
+Les chemins front et back sont optionnels. Si omis, une interface fzf
+permet de sélectionner un répertoire parmi ~/Projects et ~/Documents.
 
-Si zoxide est installé, le CLI va d'abord tenter de regarder si les chemins fournis
-n'existent pas déjà.
+Si un chemin est "--here", le répertoire courant sera utilisé.
 
-Dans le dernier cas, le chemin fourni sera construit de la manière suivante : $HOME/chemin-donné.`,
-	Args: cobra.ExactArgs(3),
+Sinon, si le chemin commence par "/", il est considéré comme absolu.
+Si zoxide est installé, le CLI tentera de résoudre les chemins relatifs.
+Dans le dernier cas, le chemin sera construit : $HOME/chemin-donné.`,
+	Args: cobra.RangeArgs(1, 3),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name, front, back := args[0], args[1], args[2]
+		name := args[0]
 
-		// Résolution des chemins via zoxide si disponible
-		frontPath, err := resolvePath(front)
+		frontPath, err := resolveOrPrompt(1, args, "Front")
 		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Println(ui.PrintError("Le chemin vers le projet Front pointe vers un répertoire inexistant"))
-				return nil
-			}
-			return fmt.Errorf("front: %w", err)
+			return err
 		}
-		backPath, err := resolvePath(back)
+		backPath, err := resolveOrPrompt(2, args, "Back")
 		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Println(ui.PrintError("Le chemin vers le projet Back pointe vers un répertoire inexistant"))
-				return nil
-			}
-			return fmt.Errorf("back: %w", err)
+			return err
 		}
 
 		store, err := config.New()
@@ -99,4 +96,93 @@ func resolvePath(input string) (string, error) {
 	}
 
 	return path, nil
+}
+
+// resolveOrPrompt résout un chemin explicitement fourni, utilise le répertoire
+// courant si "--here", ou lance une sélection fzf si l'argument est absent.
+func resolveOrPrompt(argIndex int, args []string, label string) (string, error) {
+	if argIndex >= len(args) {
+		return selectPathWithFzf(label)
+	}
+	arg := args[argIndex]
+	if arg == hereFlag {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("impossible de déterminer le répertoire courant: %w", err)
+		}
+		return wd, nil
+	}
+	path, err := resolvePath(arg)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println(ui.PrintError(fmt.Sprintf("Le chemin vers le projet %s pointe vers un répertoire inexistant", label)))
+			return "", nil
+		}
+		return "", fmt.Errorf("%s: %w", strings.ToLower(label), err)
+	}
+	return path, nil
+}
+
+// selectPathWithFzf lance une interface fzf pour sélectionner un répertoire.
+func selectPathWithFzf(label string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	paths := collectDirectories([]string{
+		filepath.Join(home, "Projets"),
+		filepath.Join(home, "Documents"),
+	})
+
+	if len(paths) == 0 {
+		return "", fmt.Errorf("aucun répertoire trouvé dans ~/Projects et ~/Documents")
+	}
+
+	f, err := fzf.New(
+		fzf.WithLimit(1),
+		fzf.WithCaseSensitive(false),
+		fzf.WithKeyMap(fzf.KeyMap{
+			Up:     []string{"up", "ctrl+p"},
+			Down:   []string{"down", "ctrl+n"},
+			Choose: []string{"enter"},
+			Abort:  []string{"esc"},
+		}),
+		fzf.WithInputPosition(fzf.InputPositionBottom),
+		fzf.WithInputPlaceholder(fmt.Sprintf("Chemin %s — rechercher un répertoire...", label)),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	idxs, err := f.Find(paths, func(i int) string {
+		return paths[i]
+	})
+	if err != nil {
+		return "", fmt.Errorf("sélection fzf annulée pour le chemin %s", label)
+	}
+
+	if len(idxs) == 0 {
+		return "", fmt.Errorf("aucun chemin %s sélectionné", strings.ToLower(label))
+	}
+
+	return paths[idxs[0]], nil
+}
+
+// collectDirectories retourne les répertoires enfants directs des racines
+// fournies, sans descendre dans les sous-répertoires.
+func collectDirectories(roots []string) []string {
+	var dirs []string
+	for _, root := range roots {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+				dirs = append(dirs, filepath.Join(root, entry.Name()))
+			}
+		}
+	}
+	return dirs
 }
