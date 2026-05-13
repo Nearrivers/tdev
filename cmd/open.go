@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,15 +11,14 @@ import (
 	"github.com/Nearrivers/tdev/internal/tmux"
 	"github.com/Nearrivers/tdev/internal/ui"
 	"github.com/spf13/cobra"
+
+	"github.com/koki-develop/go-fzf"
 )
 
 var openCmd = &cobra.Command{
-	Use:   "open <nom>",
+	Use:   "open",
 	Short: "Ouvrir un projet dans tmux",
-	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-
 		store, err := config.New()
 		if err != nil {
 			return err
@@ -29,12 +29,43 @@ var openCmd = &cobra.Command{
 			return err
 		}
 
-		project, ok := store.Get(cfg, name)
-		if !ok {
-			return fmt.Errorf(ui.PrintError("projet %q introuvable. Lance `tdev list` pour voir les projets disponibles"), name)
+		f, err := fzf.New(
+			fzf.WithLimit(1),
+			fzf.WithCaseSensitive(false),
+			fzf.WithKeyMap(fzf.KeyMap{
+				Up:     []string{"up", "ctrl+p"},
+				Down:   []string{"down", "ctrl+n"},
+				Choose: []string{"enter"},
+				Abort:  []string{"esc"},
+			}),
+			fzf.WithInputPosition(fzf.InputPositionBottom),
+			fzf.WithInputPlaceholder("Rechercher un projet..."),
+		)
+		if err != nil {
+			return err
 		}
 
-		return openNewSession(project)
+		idxs, err := f.Find(cfg.Projects, func(i int) string {
+			return fmt.Sprintf("%s | Front: %s | Back: %s", cfg.Projects[i].Name, cfg.Projects[i].Front, cfg.Projects[i].Back)
+		})
+		if err != nil {
+			return err
+		}
+
+		for _, i := range idxs {
+			fmt.Println(cfg.Projects[i])
+		}
+
+		if len(idxs) == 0 {
+			return fmt.Errorf("%s", ui.PrintError("Lance `tdev list` pour voir les projets disponibles"))
+		}
+
+		if len(idxs) != 1 {
+			return errors.New("un seul projet doit être sélectionné")
+		}
+
+		project := cfg.Projects[idxs[0]]
+		return openNewSession(&project)
 	},
 }
 
