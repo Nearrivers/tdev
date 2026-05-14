@@ -5,7 +5,7 @@ Gestionnaire de workspaces tmux pour devs fullstack.
 ## Installation
 
 ```bash
-go install github.com/user/tdev@latest
+go install github.com/Nearrivers/tdev@latest
 ```
 
 Ou depuis les sources :
